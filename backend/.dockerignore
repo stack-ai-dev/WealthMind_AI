@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Env files
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Tests
+tests/
+
+# Local database
+*.sqlite3
+
+# Node (if any)
+node_modules/
+
+# Docker
+Dockerfile
+docker-compose.yml

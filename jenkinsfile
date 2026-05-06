@@ -1,0 +1,103 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_USERNAME = "itsnotdocker"
+        BACKEND_IMAGE = "itsnotdocker/wealthmind-backend"
+        FRONTEND_IMAGE = "itsnotdocker/wealthmind-frontend"
+        TAG = "${BUILD_NUMBER}"
+    }
+
+    stages {
+
+        // Clone Repository
+        stage('Clone Repository') {
+            steps {
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    git branch: 'main', url: "https://devops-cloud-space:${GITHUB_TOKEN}@github.com/devops-cloud-space/WealthMind-AI.git"
+                }
+            }
+        }
+
+        // Create .env File (Windows)
+        stage('Create .env File') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'openai-key', variable: 'OPENAI_API_KEY'),
+                    string(credentialsId: 'secret-key', variable: 'SECRET_KEY'),
+                    string(credentialsId: 'algorithm', variable: 'ALGORITHM'),
+                    string(credentialsId: 'access-expire', variable: 'ACCESS_TOKEN_EXPIRE_MINUTES'),
+                    string(credentialsId: 'chroma-path', variable: 'CHROMA_PATH'),
+                    string(credentialsId: 'db-user', variable: 'POSTGRES_USER'),
+                    string(credentialsId: 'db-password', variable: 'POSTGRES_PASSWORD'),
+                    string(credentialsId: 'db-name', variable: 'POSTGRES_DB')
+                ]) {
+                    bat '''
+                    echo OPENAI_API_KEY=%OPENAI_API_KEY% > .env
+                    echo SECRET_KEY=%SECRET_KEY% >> .env
+                    echo ALGORITHM=%ALGORITHM% >> .env
+                    echo ACCESS_TOKEN_EXPIRE_MINUTES=%ACCESS_TOKEN_EXPIRE_MINUTES% >> .env
+                    echo CHROMA_PATH=%CHROMA_PATH% >> .env
+                    echo POSTGRES_USER=%POSTGRES_USER% >> .env
+                    echo POSTGRES_PASSWORD=%POSTGRES_PASSWORD% >> .env
+                    echo POSTGRES_DB=%POSTGRES_DB% >> .env
+                    echo DATABASE_URL=postgresql://%POSTGRES_USER%:%POSTGRES_PASSWORD%@db:5432/%POSTGRES_DB% >> .env
+                    '''
+                }
+            }
+        }
+
+        // Build Docker Images
+        stage('Build Docker Images') {
+            steps {
+                bat 'docker build -t %BACKEND_IMAGE%:%TAG% ./backend'
+                bat 'docker build -t %FRONTEND_IMAGE%:%TAG% ./frontend'
+
+                bat "docker tag %BACKEND_IMAGE%:%TAG% %BACKEND_IMAGE%:latest"
+                bat "docker tag %FRONTEND_IMAGE%:%TAG% %FRONTEND_IMAGE%:latest"
+            }
+        }
+
+        // Docker Login
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([string(credentialsId: 'dockerpass', variable: 'DOCKER_PASS')]) {
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USERNAME% --password-stdin"
+                }            
+            }
+        }
+
+        // Push Docker Images
+        stage('Push Docker Images') {
+            steps {
+                bat 'docker push %BACKEND_IMAGE%:%TAG%'
+                bat 'docker push %FRONTEND_IMAGE%:%TAG%'
+                bat "docker push %BACKEND_IMAGE%:latest"
+                bat "docker push %FRONTEND_IMAGE%:latest"
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'ec2-ssh-key',
+                    keyFileVariable: 'KEY_FILE'
+                )]) {
+                    bat '''
+                        icacls "%KEY_FILE%" /inheritance:r
+                        icacls "%KEY_FILE%" /grant:r "SYSTEM:(R)"
+                        icacls "%KEY_FILE%" /grant:r "Administrators:(R)"
+                        ssh -o StrictHostKeyChecking=no -i "%KEY_FILE%" ubuntu@16.16.70.179 "cd ~/wealthmind && docker-compose down && docker-compose pull && docker-compose up -d"
+                    '''
+                }
+            }
+        }
+    }
+
+    // Cleanup
+    post {
+        always {
+            bat 'docker logout'
+        }
+    }
+}
