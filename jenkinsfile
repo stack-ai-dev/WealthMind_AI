@@ -15,6 +15,8 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
                     git branch: 'main', url: "https://devops-cloud-space:${GITHUB_TOKEN}@github.com/devops-cloud-space/WealthMind-AI.git"
+                    git clone https://github.com/stack-ai-dev/WealthMind_AI.git // Use this line if cloning the public repo (ignore the one above for private access)
+
                 }
             }
         }
