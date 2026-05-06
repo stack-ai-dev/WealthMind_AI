@@ -190,8 +190,8 @@ WealthMind-AI/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/devops-cloud-space/WealthMind-AI.git
-cd WealthMind-AI
+git clone https://github.com/stack-ai-dev/WealthMind_AI.git
+cd WealthMind_AI
 ```
 
 ### 2. Configure Environment Variables
